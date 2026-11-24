@@ -106,7 +106,7 @@ File migrasi SQL lengkap tersedia di folder `supabase/migrations/`:
 ### Langkah Instalasi
 1. Masuk ke direktori proyek:
    ```bash
-   cd "e:\pemrogramman web 2\ART-IN"
+   cd "ART-IN"
    ```
 
 2. Konfigurasi Environment Variables:
