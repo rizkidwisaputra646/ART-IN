@@ -418,6 +418,7 @@ export function reviewVerificationRequest(
 }
 
 export function submitVerificationRequest(data: {
+  id?: string;
   userId: string;
   userName: string;
   userRole: 'family' | 'art';
@@ -427,7 +428,7 @@ export function submitVerificationRequest(data: {
   notes?: string;
 }): VerificationRequest {
   const newReq: VerificationRequest = {
-    id: `verif-${Date.now()}`,
+    id: data.id || `verif-${Date.now()}`,
     userId: data.userId,
     userName: data.userName,
     userRole: data.userRole,
@@ -504,8 +505,8 @@ export function updateArtProfile(artId: string, data: Partial<ArtProfile>): bool
 // Admin Stats Overview
 export function getAdminStats() {
   const totalArt = artProfiles.length;
-  const totalEmployers = 3; // Initial mock employers
-  const totalUsers = totalArt + totalEmployers + 1; // + admin
+  const totalEmployers = 0;
+  const totalUsers = totalArt + totalEmployers;
   const totalActiveJobs = jobVacancies.filter((j) => j.status === 'active').length;
   const totalApplications = applications.length;
   const pendingVerifications = verifications.filter((v) => v.status === 'pending').length;

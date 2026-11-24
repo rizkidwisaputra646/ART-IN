@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { createClient } from '@/lib/supabase/client';
 import { Navbar } from '@/components/ui/Navbar';
 import { Footer } from '@/components/ui/Footer';
 import { Button } from '@/components/ui/Button';
@@ -40,18 +41,49 @@ import {
   Search,
   Lock,
   Loader2,
+  Camera,
+  UploadCloud,
 } from 'lucide-react';
 
 export default function ArtDashboardPage() {
-  const { profile, isLoading: isAuthLoading } = useAuth();
-  const artId = profile?.role === 'art' ? profile.id : 'art-1';
-  const initialArt = getArtById(artId) || getArtById('art-1')!;
+  const { profile, isLoading: isAuthLoading, updateProfile } = useAuth();
+  const artId = profile?.role === 'art' ? profile.id : (profile?.id || 'art-user');
+
+  const defaultArtProfile: ArtProfile = {
+    id: artId,
+    fullName: profile?.full_name || 'Calon Asisten Rumah Tangga',
+    avatarUrl: profile?.avatar_url || '/default-avatar.svg',
+    gender: 'female',
+    age: 28,
+    city: 'Bandar Lampung',
+    district: profile?.district || 'Kedaton',
+    bio: 'Calon asisten rumah tangga siap bekerja dan membantu kebutuhan rumah tangga keluarga Anda.',
+    experienceYears: 0,
+    preferredJobTypes: ['full_time', 'live_out'],
+    expectedSalaryMin: 1500000,
+    expectedSalaryMax: 2500000,
+    availabilityStatus: 'available',
+    workSchedule: 'Pulang Pergi (08:00 - 17:00 WIB)',
+    verificationStatus: 'unverified',
+    locationConsent: false,
+    phone: profile?.phone || '',
+    email: profile?.email || '',
+    skills: [],
+    workExperiences: [],
+    createdAt: new Date().toISOString(),
+  };
+
+  const initialArt = (artId ? getArtById(artId) : null) || defaultArtProfile;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'applications' | 'edit_profile' | 'verification' | 'location'>('overview');
 
   // Profile Form States
   const [artData, setArtData] = useState<ArtProfile>(initialArt);
   const [fullName, setFullName] = useState(artData.fullName);
+  const [avatarUrl, setAvatarUrl] = useState(artData.avatarUrl || '/default-avatar.svg');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [idCardFileUrl, setIdCardFileUrl] = useState('');
+  const [selfieFileUrl, setSelfieFileUrl] = useState('');
   const [district, setDistrict] = useState(artData.district);
   const [addressSummary, setAddressSummary] = useState(artData.addressSummary || '');
   const [bio, setBio] = useState(artData.bio || '');
@@ -70,10 +102,175 @@ export default function ArtDashboardPage() {
   const [verifNotes, setVerifNotes] = useState('');
   const [verifSubmitted, setVerifSubmitted] = useState(false);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const supabase = createClient();
+
+  // Load live data from Supabase
+  useEffect(() => {
+    if (!artId || artId === 'art-user') return;
+
+    async function loadArtFromSupabase() {
+      try {
+        // 1. Fetch user profile from profiles table
+        const { data: profRow } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone, email, avatar_url')
+          .eq('id', artId)
+          .single();
+
+        // 2. Fetch ART details from art_profiles table
+        const { data: artProfileRow } = await supabase
+          .from('art_profiles')
+          .select('*')
+          .eq('id', artId)
+          .single();
+
+        if (profRow || artProfileRow) {
+          setArtData((prev) => ({
+            ...prev,
+            fullName: profRow?.full_name || prev.fullName,
+            avatarUrl: profRow?.avatar_url || prev.avatarUrl,
+            district: artProfileRow?.district || prev.district,
+            addressSummary: artProfileRow?.address_summary || prev.addressSummary,
+            bio: artProfileRow?.bio || prev.bio,
+            experienceYears: artProfileRow?.experience_years ?? prev.experienceYears,
+            expectedSalaryMin: Number(artProfileRow?.expected_salary_min || prev.expectedSalaryMin),
+            expectedSalaryMax: Number(artProfileRow?.expected_salary_max || prev.expectedSalaryMax),
+            availabilityStatus: artProfileRow?.availability_status || prev.availabilityStatus,
+            workSchedule: artProfileRow?.work_schedule || prev.workSchedule,
+            verificationStatus: artProfileRow?.verification_status || prev.verificationStatus,
+            locationConsent: artProfileRow?.location_consent ?? prev.locationConsent,
+          }));
+
+          if (profRow?.full_name) setFullName(profRow.full_name);
+          if (profRow?.avatar_url) setAvatarUrl(profRow.avatar_url);
+          if (artProfileRow?.district) setDistrict(artProfileRow.district);
+          if (artProfileRow?.bio) setBio(artProfileRow.bio);
+          if (artProfileRow?.experience_years != null) setExperienceYears(artProfileRow.experience_years);
+          if (artProfileRow?.expected_salary_min != null) setExpectedSalaryMin(Number(artProfileRow.expected_salary_min));
+          if (artProfileRow?.expected_salary_max != null) setExpectedSalaryMax(Number(artProfileRow.expected_salary_max));
+          if (artProfileRow?.availability_status) setAvailabilityStatus(artProfileRow.availability_status);
+          if (artProfileRow?.work_schedule) setWorkSchedule(artProfileRow.work_schedule);
+          if (artProfileRow?.location_consent != null) setLocationConsent(artProfileRow.location_consent);
+        }
+
+        // 3. Fetch latest verification request
+        const { data: verifRow } = await supabase
+          .from('verification_requests')
+          .select('*')
+          .eq('user_id', artId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (verifRow && verifRow.length > 0) {
+          const latest = verifRow[0];
+          if (latest.status === 'pending') {
+            setVerifSubmitted(true);
+          }
+          if (latest.status) {
+            setArtData((prev) => ({ ...prev, verificationStatus: latest.status }));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching ART live data from Supabase:', err);
+      }
+    }
+
+    loadArtFromSupabase();
+  }, [artId]);
+
+  // Keep avatar in sync with AuthProfile
+  useEffect(() => {
+    if (profile?.avatar_url && (!avatarUrl || avatarUrl === '/default-avatar.svg')) {
+      setAvatarUrl(profile.avatar_url);
+      setArtData((prev) => ({ ...prev, avatarUrl: profile.avatar_url || prev.avatarUrl }));
+    }
+  }, [profile?.avatar_url]);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Url = reader.result as string;
+      setAvatarUrl(base64Url);
+      setArtData((prev) => ({ ...prev, avatarUrl: base64Url }));
+
+      try {
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${artId}-${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+
+        let finalPhotoUrl = base64Url;
+        if (!uploadError) {
+          const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
+          if (publicUrl) {
+            finalPhotoUrl = publicUrl;
+            setAvatarUrl(publicUrl);
+            setArtData((prev) => ({ ...prev, avatarUrl: publicUrl }));
+          }
+        }
+
+        // Persist avatar_url to profiles table in Supabase
+        await supabase.from('profiles').update({ avatar_url: finalPhotoUrl }).eq('id', artId);
+
+        // Update AuthContext & localStorage immediately
+        if (updateProfile) {
+          updateProfile({ avatar_url: finalPhotoUrl });
+        }
+        const saved = localStorage.getItem('artin_user_profile');
+        if (saved) {
+          const p = JSON.parse(saved);
+          p.avatar_url = finalPhotoUrl;
+          localStorage.setItem('artin_user_profile', JSON.stringify(p));
+        }
+      } catch (err) {
+        console.warn('Photo upload sync error:', err);
+      }
+      setIsUploadingPhoto(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleKtpUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const url = reader.result as string;
+      setIdCardFileUrl(url);
+      try {
+        const fileExt = file.name.split('.').pop();
+        const filePath = `ktp-${artId}-${Date.now()}.${fileExt}`;
+        await supabase.storage.from('verification-docs').upload(filePath, file);
+      } catch {}
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSelfieUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const url = reader.result as string;
+      setSelfieFileUrl(url);
+      try {
+        const fileExt = file.name.split('.').pop();
+        const filePath = `selfie-${artId}-${Date.now()}.${fileExt}`;
+        await supabase.storage.from('verification-docs').upload(filePath, file);
+      } catch {}
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+
     updateArtProfile(artId, {
       fullName,
+      avatarUrl,
       district,
       addressSummary,
       bio,
@@ -84,9 +281,31 @@ export default function ArtDashboardPage() {
       locationConsent,
       workSchedule,
     });
+
+    try {
+      await supabase.from('profiles').update({
+        full_name: fullName,
+        avatar_url: avatarUrl,
+      }).eq('id', artId);
+
+      await supabase.from('art_profiles').upsert({
+        id: artId,
+        district,
+        address_summary: addressSummary,
+        bio,
+        experience_years: Number(experienceYears),
+        expected_salary_min: Number(expectedSalaryMin),
+        expected_salary_max: Number(expectedSalaryMax),
+        availability_status: availabilityStatus,
+        location_consent: locationConsent,
+        work_schedule: workSchedule,
+      });
+    } catch {}
+
     setArtData({
       ...artData,
       fullName,
+      avatarUrl,
       district,
       addressSummary,
       bio,
@@ -112,18 +331,100 @@ export default function ArtDashboardPage() {
     }
   };
 
-  const handleVerificationSubmit = (e: React.FormEvent) => {
+  const handleVerificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 1. Validate active Supabase Auth session
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const effectiveUserId = authUser?.id || (profile?.id !== 'art-user' ? profile?.id : null);
+
+    if (!effectiveUserId) {
+      alert('Sesi login Anda belum terhubung dengan Supabase Auth. Silakan login atau buat akun terlebih dahulu.');
+      return;
+    }
+
+    // 2. Ensure profile exists in profiles table (valid columns only)
+    try {
+      await supabase.from('profiles').upsert({
+        id: effectiveUserId,
+        role: 'art',
+        full_name: fullName || 'ART Pelamar',
+        email: authUser?.email || '',
+        status: 'active',
+      });
+
+      await supabase.from('art_profiles').upsert({
+        id: effectiveUserId,
+        district: district || 'Kedaton',
+        city: 'Bandar Lampung',
+        verification_status: 'pending',
+      });
+    } catch (e) {
+      console.warn('Upsert profile pre-check:', e);
+    }
+
+    // 3. Persist to Supabase verification_requests table
+    const { data: insertedData, error: insertError } = await supabase
+      .from('verification_requests')
+      .insert({
+        user_id: effectiveUserId,
+        role: 'art',
+        id_card_url: idCardFileUrl || '/default-avatar.svg',
+        selfie_url: selfieFileUrl || avatarUrl || '/default-avatar.svg',
+        notes: verifNotes || '',
+        status: 'pending',
+      })
+      .select();
+
+    if (insertError) {
+      console.error('Error submitting verification to Supabase:', insertError);
+      alert(
+        `Gagal menyimpan dokumen verifikasi ke Supabase: ${insertError.message}\n\nPastikan script migrasi GRANT permissions (Migration 04) telah dijalankan di SQL Editor Supabase.`
+      );
+      return;
+    }
+
+    // 4. Update art_profiles table
+    try {
+      await supabase
+        .from('art_profiles')
+        .upsert({
+          id: effectiveUserId,
+          district: district,
+          verification_status: 'pending',
+        });
+    } catch {}
+
+    // 5. Update local state and in-memory fallback
     submitVerificationRequest({
-      userId: artId,
+      id: insertedData?.[0]?.id,
+      userId: effectiveUserId,
       userName: fullName,
       userRole: 'art',
       userDistrict: district,
-      idCardUrl: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=500',
-      selfieUrl: artData.avatarUrl,
+      idCardUrl: idCardFileUrl || '/default-avatar.svg',
+      selfieUrl: selfieFileUrl || avatarUrl || '/default-avatar.svg',
       notes: verifNotes,
     });
     setVerifSubmitted(true);
+    setArtData((prev) => ({ ...prev, verificationStatus: 'pending' }));
+
+    // 6. Call API endpoint for background sync
+    try {
+      await fetch('/api/verifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          userName: fullName,
+          userRole: 'art',
+          userDistrict: district,
+          idCardUrl: idCardFileUrl || '/default-avatar.svg',
+          selfieUrl: selfieFileUrl || avatarUrl || '/default-avatar.svg',
+          notes: verifNotes,
+        }),
+      });
+    } catch {}
   };
 
   // Recent jobs for quick apply
@@ -178,7 +479,7 @@ export default function ArtDashboardPage() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
             <div className="flex items-center gap-4">
               <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shrink-0 border border-primary/20 shadow-sm">
-                <Image src={artData.avatarUrl} alt={fullName} fill className="object-cover" />
+                <Image src={artData.avatarUrl} alt={fullName} fill unoptimized className="object-cover" />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -501,6 +802,35 @@ export default function ArtDashboardPage() {
               )}
 
               <form onSubmit={handleSaveProfile} className="space-y-4">
+                {/* Photo Upload Real */}
+                <div className="p-4 bg-cream-50 rounded-2xl border border-accent-border/60 flex flex-col sm:flex-row items-center gap-5">
+                  <div className="relative w-20 h-20 rounded-2xl overflow-hidden shrink-0 border-2 border-primary/20 shadow-xs bg-white">
+                    <Image
+                      src={avatarUrl && avatarUrl.trim() !== '' ? avatarUrl : '/default-avatar.svg'}
+                      alt="Foto Profil"
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-1.5 text-center sm:text-left">
+                    <span className="block text-xs font-bold text-neutral-dark">Foto Profil Asli (Calon ART)</span>
+                    <p className="text-[11px] text-neutral-secondary">
+                      Unggah foto asli Anda yang rapi dan sopan untuk meningkatkan kepercayaan keluarga di Bandar Lampung.
+                    </p>
+                    <label className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white border border-primary/40 text-primary text-xs font-bold cursor-pointer hover:bg-primary-light transition-colors mt-1">
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>{isUploadingPhoto ? 'Memproses Foto...' : 'Pilih / Unggah Foto Real'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handlePhotoUpload}
+                      />
+                    </label>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="Nama Lengkap"
@@ -604,14 +934,24 @@ export default function ArtDashboardPage() {
                 </p>
               </div>
 
-              {verifSubmitted ? (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-2xl space-y-2">
-                  <div className="flex items-center gap-2 font-bold">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <span>Pengajuan Verifikasi Telah Dikirim ke Admin</span>
+              {artData.verificationStatus === 'verified' ? (
+                <div className="p-6 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-2xl space-y-3">
+                  <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <span>Akun Anda Telah Resmi Terverifikasi</span>
                   </div>
-                  <p>
-                    Admin ARTin sedang meninjau dokumen identitas Anda. Dokumen disimpan secara terproteksi di private storage.
+                  <p className="text-xs text-emerald-700 leading-relaxed">
+                    Dokumen KTP Anda telah diperiksa dan disetujui oleh tim operasional ARTin Bandar Lampung. Lencana <strong>Verified</strong> kini tampil pada kartu profil Anda saat keluarga mencari ART.
+                  </p>
+                </div>
+              ) : verifSubmitted || artData.verificationStatus === 'pending' ? (
+                <div className="p-5 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-800">
+                    <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                    <span>Pengajuan Verifikasi Sedang Ditinjau Admin</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    Dokumen identitas Anda telah masuk ke sistem antrean verifikasi ARTin dan sedang diperiksa oleh staf pemeriksa.
                   </p>
                 </div>
               ) : (
@@ -625,13 +965,32 @@ export default function ArtDashboardPage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-neutral-secondary mb-1">
-                      Foto KTP Asli
+                      Foto KTP Asli (Dokumen Pribadi)
                     </label>
                     <input
                       type="file"
                       accept="image/*"
+                      onChange={handleKtpUpload}
                       className="w-full text-xs text-neutral-secondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary-light file:text-primary hover:file:bg-primary/20 cursor-pointer"
                     />
+                    {idCardFileUrl && (
+                      <p className="text-[11px] text-emerald-700 font-bold mt-1">✓ Berkas KTP berhasil dipilih</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-secondary mb-1">
+                      Foto Selfie Memegang KTP Asli
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSelfieUpload}
+                      className="w-full text-xs text-neutral-secondary file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary-light file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                    />
+                    {selfieFileUrl && (
+                      <p className="text-[11px] text-emerald-700 font-bold mt-1">✓ Foto selfie berhasil dipilih</p>
+                    )}
                   </div>
 
                   <Textarea

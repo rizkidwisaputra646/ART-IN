@@ -1,4 +1,7 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { applyForJob, getApplicationsForArt, getApplicationsForEmployer, updateApplicationStatus } from '@/lib/data-repository';
 import { ApplicationStatus } from '@/types';
 
@@ -54,6 +57,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: result.message }, { status: 422 });
     }
 
+    if (result.application) {
+      try {
+        const supabase = createClient();
+        await supabase.from('applications').insert({
+          id: result.application.id,
+          art_id: artId,
+          job_id: jobId,
+          status: 'pending',
+          cover_letter: coverLetter || '',
+        });
+      } catch {}
+    }
+
     return NextResponse.json({
       success: true,
       message: result.message,
@@ -87,6 +103,15 @@ export async function PATCH(request: NextRequest) {
     if (!res.success) {
       return NextResponse.json({ success: false, error: res.message }, { status: 422 });
     }
+
+    try {
+      const supabase = createClient();
+      await supabase.from('applications').update({
+        status,
+        notes,
+        interview_scheduled_at: interviewScheduledAt,
+      }).eq('id', applicationId);
+    } catch {}
 
     return NextResponse.json({ success: true, message: res.message });
   } catch (error: any) {

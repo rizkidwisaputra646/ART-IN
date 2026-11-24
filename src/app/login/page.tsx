@@ -9,12 +9,11 @@ import { Footer } from '@/components/ui/Footer';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuth } from '@/lib/auth-context';
-import { UserRole } from '@/types';
-import { Mail, Lock, UserCheck, Shield, Sparkles, AlertCircle } from 'lucide-react';
+import { Mail, Lock, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, switchRole } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,26 +25,19 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email);
-      if (email.toLowerCase().includes('admin')) {
+      const res = await login(email, password);
+      if (res?.role === 'admin') {
         router.push('/admin');
-      } else if (email.toLowerCase().includes('art')) {
+      } else if (res?.role === 'art') {
         router.push('/art');
       } else {
         router.push('/keluarga');
       }
     } catch (err: any) {
-      setError(err?.message || 'Gagal masuk. Silakan periksa kembali email atau password Anda.');
+      setError(err?.message || 'Gagal masuk. Silakan periksa kembali email atau kata sandi Anda.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickLogin = (role: UserRole) => {
-    switchRole(role);
-    if (role === 'admin') router.push('/admin');
-    else if (role === 'art') router.push('/art');
-    else router.push('/keluarga');
   };
 
   return (
@@ -66,50 +58,6 @@ export default function LoginPage() {
               Masuk ke akun ARTin Anda untuk mengelola lowongan atau profil kerja.
             </p>
           </div>
-
-          {/* Quick Demo Switcher Card - STRICTLY AVAILABLE IN DEVELOPMENT ONLY */}
-          {process.env.NODE_ENV === 'development' && (
-            <div className="bg-cream-100 rounded-2xl p-4 border border-accent-border/80 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-dark">
-                  <Sparkles className="w-3.5 h-3.5 text-accent" />
-                  <span>Akses Cepat Pengujian (Role Switcher - Dev Only)</span>
-                </div>
-                <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-200/60 text-amber-900 px-1.5 py-0.5 rounded">
-                  Development Mode
-                </span>
-              </div>
-              <p className="text-[11px] text-neutral-secondary leading-tight">
-                Simulasi perpindahan role untuk pengujian lokal:
-              </p>
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('family')}
-                  className="p-2 rounded-xl bg-white border border-neutral-border hover:border-primary text-center hover:bg-primary-light transition-all text-xs font-semibold text-neutral-dark"
-                >
-                  Keluarga
-                  <span className="block text-[10px] text-neutral-secondary font-normal">Ibu Maya</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('art')}
-                  className="p-2 rounded-xl bg-white border border-neutral-border hover:border-primary text-center hover:bg-primary-light transition-all text-xs font-semibold text-neutral-dark"
-                >
-                  Calon ART
-                  <span className="block text-[10px] text-neutral-secondary font-normal">Siti Rahayu</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('admin')}
-                  className="p-2 rounded-xl bg-white border border-neutral-border hover:border-primary text-center hover:bg-primary-light transition-all text-xs font-semibold text-neutral-dark"
-                >
-                  Admin
-                  <span className="block text-[10px] text-neutral-secondary font-normal">Moderator</span>
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Standard Login Form */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-border shadow-card space-y-4">
@@ -135,7 +83,7 @@ export default function LoginPage() {
                 label="Kata Sandi"
                 type="password"
                 required
-                placeholder="Minimal 8 karakter"
+                placeholder="Masukkan kata sandi Anda"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 leftIcon={<Lock className="w-4 h-4" />}
@@ -146,9 +94,9 @@ export default function LoginPage() {
                   <input type="checkbox" className="rounded border-neutral-border text-primary focus:ring-primary" />
                   <span>Ingat saya</span>
                 </label>
-                <a href="#" className="font-semibold text-primary hover:underline">
+                <Link href="#" className="font-semibold text-primary hover:underline">
                   Lupa sandi?
-                </a>
+                </Link>
               </div>
 
               <Button

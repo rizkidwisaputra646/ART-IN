@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound, useParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { Navbar } from '@/components/ui/Navbar';
 import { Footer } from '@/components/ui/Footer';
 import { Button } from '@/components/ui/Button';
@@ -12,6 +13,7 @@ import { VerificationBadge, AvailabilityBadge, JobTypeBadge } from '@/components
 import { getArtById, submitReport, getJobById, searchJobVacancies } from '@/lib/data-repository';
 import { formatCompactRupiah, formatRupiah, createWhatsAppUrl } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
+import { ArtProfile, Skill, WorkExperience } from '@/types';
 import {
   MapPin,
   Briefcase,
@@ -27,12 +29,14 @@ import {
   User,
   Heart,
   Share2,
+  Loader2,
 } from 'lucide-react';
 
 export default function ArtDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const art = getArtById(id);
+  const [art, setArt] = useState<ArtProfile | null>(() => getArtById(id));
+  const [loading, setLoading] = useState(true);
   const { profile } = useAuth();
 
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -41,6 +45,124 @@ export default function ArtDetailPage() {
   const [reportReason, setReportReason] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
   const [offerSuccess, setOfferSuccess] = useState(false);
+
+  // Live fetch candidate details from Supabase
+  useEffect(() => {
+    if (!id) return;
+
+    async function loadArtCandidate() {
+      setLoading(true);
+      try {
+        const supabase = createClient();
+
+        // 1. Fetch user profile from profiles table
+        const { data: profRow } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        // 2. Fetch ART profile details
+        const { data: artRow } = await supabase
+          .from('art_profiles')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (profRow || artRow) {
+          // 3. Fetch skills
+          const { data: skillsData } = await supabase
+            .from('art_skills')
+            .select('skill_id, proficiency_level, skills:skill_id(name, category)')
+            .eq('art_id', id);
+
+          const mappedSkills: Skill[] = (skillsData || []).map((s: any, idx: number) => ({
+            id: s.skill_id || `skill-${idx}`,
+            name: s.skills?.name || 'Keterampilan',
+            category: s.skills?.category || 'Umum',
+            level: (s.proficiency_level as 'dasar' | 'menengah' | 'ahli') || 'menengah',
+          }));
+
+          // 4. Fetch work experiences
+          const { data: expData } = await supabase
+            .from('work_experiences')
+            .select('*')
+            .eq('art_id', id)
+            .order('start_date', { ascending: false });
+
+          const mappedExp: WorkExperience[] = (expData || []).map((e: any) => ({
+            id: e.id,
+            artId: id,
+            title: e.title,
+            employerName: e.employer_name,
+            startDate: e.start_date,
+            endDate: e.end_date,
+            isCurrent: e.is_current ?? false,
+            description: e.description || '',
+            referenceContact: e.reference_contact,
+            referenceConsent: e.reference_consent ?? false,
+          }));
+
+          const candidate: ArtProfile = {
+            id,
+            fullName: profRow?.full_name || 'Kandidat ART',
+            avatarUrl: profRow?.avatar_url || '/default-avatar.svg',
+            phone: profRow?.phone || '',
+            email: profRow?.email || '',
+            gender: artRow?.gender || 'female',
+            age: artRow?.age || 28,
+            city: artRow?.city || 'Bandar Lampung',
+            district: artRow?.district || 'Kedaton',
+            addressSummary: artRow?.address_summary || `Kecamatan ${artRow?.district || 'Kedaton'}`,
+            bio: artRow?.bio || 'Calon asisten rumah tangga siap bekerja dan membantu kebutuhan rumah tangga keluarga Anda.',
+            experienceYears: artRow?.experience_years ?? 0,
+            preferredJobTypes: Array.isArray(artRow?.preferred_job_types) ? artRow.preferred_job_types : ['full_time'],
+            expectedSalaryMin: Number(artRow?.expected_salary_min || 1500000),
+            expectedSalaryMax: Number(artRow?.expected_salary_max || 2500000),
+            availabilityStatus: artRow?.availability_status || 'available',
+            workSchedule: artRow?.work_schedule || 'Pulang Pergi (08:00 - 17:00 WIB)',
+            verificationStatus: artRow?.verification_status || 'unverified',
+            locationConsent: artRow?.location_consent ?? false,
+            skills: mappedSkills.length > 0 ? mappedSkills : [
+              { id: 'sk-1', name: 'Memasak Harian', category: 'Tata Boga', level: 'menengah' },
+              { id: 'sk-2', name: 'Mencuci & Menyetrika', category: 'Kebersihan', level: 'ahli' },
+              { id: 'sk-3', name: 'Membersihkan Rumah', category: 'Kebersihan', level: 'ahli' },
+            ],
+            workExperiences: mappedExp,
+            createdAt: artRow?.created_at || new Date().toISOString(),
+          };
+
+          setArt(candidate);
+        } else {
+          const local = getArtById(id);
+          if (local) setArt(local);
+        }
+      } catch (err) {
+        console.warn('Error fetching candidate from Supabase:', err);
+        const local = getArtById(id);
+        if (local) setArt(local);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadArtCandidate();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAFCFA]">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="flex items-center gap-3 text-sm text-neutral-secondary font-medium">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span>Memuat rincian profil kandidat ART...</span>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!art) {
     return (
@@ -112,10 +234,11 @@ export default function ArtDetailPage() {
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
                 <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl overflow-hidden shrink-0 border-2 border-primary/20 shadow-md">
                   <Image
-                    src={art.avatarUrl}
+                    src={art.avatarUrl && art.avatarUrl.trim() !== '' ? art.avatarUrl : '/default-avatar.svg'}
                     alt={art.fullName}
                     fill
                     priority
+                    unoptimized
                     className="object-cover"
                   />
                 </div>

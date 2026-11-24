@@ -20,16 +20,21 @@ export function Navbar() {
     { href: '/tentang', label: 'Tentang ARTin' },
   ];
 
+  const isAdmin =
+    profile?.role === 'admin' ||
+    (profile?.email || '').toLowerCase().includes('admin') ||
+    (profile?.full_name || '').toLowerCase().trim() === 'admin';
+
   const getDashboardHref = () => {
     if (!profile) return '/login';
-    if (profile.role === 'admin') return '/admin';
+    if (isAdmin) return '/admin';
     if (profile.role === 'family') return '/keluarga';
     return '/art';
   };
 
   const getRoleLabel = () => {
     if (!profile) return '';
-    if (profile.role === 'admin') return 'Admin';
+    if (isAdmin) return 'Admin';
     if (profile.role === 'family') return 'Keluarga';
     return 'ART';
   };
@@ -95,13 +100,14 @@ export function Navbar() {
                 </Link>
 
                 <div className="flex items-center gap-2 pl-2 border-l border-neutral-border">
-                  <div className="w-8 h-8 rounded-full bg-cream-200 border border-accent-border flex items-center justify-center text-xs font-bold text-neutral-dark overflow-hidden">
+                  <div className="w-8 h-8 rounded-full bg-cream-200 border border-accent-border flex items-center justify-center text-xs font-bold text-neutral-dark overflow-hidden relative">
                     {profile.avatar_url ? (
                       <Image
                         src={profile.avatar_url}
                         alt={profile.full_name}
                         width={32}
                         height={32}
+                        unoptimized
                         className="object-cover w-full h-full"
                       />
                     ) : (

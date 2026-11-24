@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import { Navbar } from '@/components/ui/Navbar';
 import { Footer } from '@/components/ui/Footer';
 import { Button } from '@/components/ui/Button';
@@ -11,6 +12,7 @@ import { VerificationBadge, JobTypeBadge } from '@/components/ui/Badge';
 import { getJobById, applyForJob, submitReport } from '@/lib/data-repository';
 import { formatCompactRupiah, formatRupiah, formatDateIndo, createWhatsAppUrl } from '@/lib/utils';
 import { useAuth } from '@/lib/auth-context';
+import { JobVacancy } from '@/types';
 import {
   MapPin,
   Clock,
@@ -25,13 +27,15 @@ import {
   FileText,
   DollarSign,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 
 export default function DetailLowonganPage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
-  const job = getJobById(id);
+  const [job, setJob] = useState<JobVacancy | null>(() => getJobById(id));
+  const [loading, setLoading] = useState(true);
   const { user, profile } = useAuth();
 
   const [applyModalOpen, setApplyModalOpen] = useState(false);
@@ -42,6 +46,75 @@ export default function DetailLowonganPage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
+
+  // Live fetch job details from Supabase
+  useEffect(() => {
+    if (!id) return;
+
+    async function loadJobFromSupabase() {
+      setLoading(true);
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from('job_vacancies')
+          .select('*, employer_profiles:employer_id(contact_person, verification_status)')
+          .eq('id', id)
+          .single();
+
+        if (data && !error) {
+          const mappedJob: JobVacancy = {
+            id: data.id,
+            employerId: data.employer_id,
+            employerName: data.employer_profiles?.contact_person || 'Keluarga',
+            employerVerificationStatus: data.employer_profiles?.verification_status || 'verified',
+            city: 'Bandar Lampung',
+            requiredCount: 1,
+            paymentSchedule: 'Bulanan',
+            title: data.title,
+            description: data.description,
+            district: data.district,
+            jobType: data.job_type,
+            salaryMin: Number(data.salary_min),
+            salaryMax: Number(data.salary_max),
+            workingHours: data.working_hours,
+            workingDays: data.working_days,
+            facilities: Array.isArray(data.facilities) ? data.facilities : [],
+            requirements: Array.isArray(data.requirements) ? data.requirements : [],
+            status: data.status,
+            createdAt: data.created_at || new Date().toISOString(),
+            updatedAt: data.updated_at || data.created_at || new Date().toISOString(),
+          };
+          setJob(mappedJob);
+        } else {
+          const local = getJobById(id);
+          if (local) setJob(local);
+        }
+      } catch (err) {
+        console.warn('Error loading job by id:', err);
+        const local = getJobById(id);
+        if (local) setJob(local);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadJobFromSupabase();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAFCFA]">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="flex items-center gap-3 text-sm text-neutral-secondary font-medium">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span>Memuat rincian lowongan pekerjaan...</span>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!job) {
     return (
@@ -326,7 +399,7 @@ export default function DetailLowonganPage() {
             <form onSubmit={handleApply} className="space-y-4">
               <div className="p-3 bg-neutral-light rounded-xl border border-neutral-border text-xs text-neutral-secondary">
                 <p>
-                  Lamaran akan dikirim menggunakan data profil ART Anda: <strong>{profile?.full_name || 'Siti Rahayu (Simulasi ART)'}</strong>
+                  Lamaran akan dikirim menggunakan data profil ART Anda: <strong>{profile?.full_name || 'Profil Akun ART'}</strong>
                 </p>
               </div>
 

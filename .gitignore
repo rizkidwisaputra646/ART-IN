@@ -1,34 +1,82 @@
-# Dependencies
+# ==============================================================================
+# ARTin - Production .gitignore
+# ==============================================================================
+
+# 1. Dependencies
 /node_modules
 /.pnp
 .pnp.js
+.yarn/install-state.gz
 
-# Testing
-/coverage
-
-# Next.js
+# 2. Next.js Build Outputs & Caches
 /.next/
 /out/
-
-# Production
 /build
+/dist
+.turbo
+.cache
 
-# Misc
-.DS_Store
+# 3. Environment Variables & Secret Files (CRITICAL - DO NOT COMMIT SECRETS)
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *.pem
+*.key
+*.cert
+*.crt
 
-# Debug
+# Keep .env.example tracked for repository documentation
+!.env.example
+
+# 4. Testing & Coverage
+/coverage
+*.lcov
+.nyc_output
+
+# 5. Debugging & Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
 
-# Local env files
-.env*.local
-.env
-
-# Vercel
-.vercel
-
-# TypeScript
+# 6. TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# 7. Deployment (Vercel)
+.vercel
+
+# 8. Operating System Specific
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+
+# 9. IDE & Editor Configs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+*.sublime-project

@@ -22,9 +22,10 @@ export function ArtCard({ art, showDistance = true }: ArtCardProps) {
             {/* Avatar Photo */}
             <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden shrink-0 bg-neutral-light border border-neutral-border/80 shadow-sm group-hover:scale-102 transition-transform">
               <Image
-                src={art.avatarUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop&q=80'}
+                src={art.avatarUrl && art.avatarUrl.trim() !== '' ? art.avatarUrl : '/default-avatar.svg'}
                 alt={art.fullName}
                 fill
+                unoptimized
                 sizes="(max-width: 640px) 64px, 80px"
                 className="object-cover"
               />

@@ -229,60 +229,52 @@ export default function HomePage() {
                   {/* Backdrop Glow */}
                   <div className="absolute inset-0 bg-primary/10 rounded-3xl transform rotate-2 scale-98 -z-10" />
 
-                  {/* Main Hero Card */}
+                  {/* Main Hero Card: ARTin Value Proposition & Verification Shield */}
                   <div className="bg-white rounded-3xl p-6 shadow-dropdown border border-neutral-border space-y-4">
                     <div className="flex items-center justify-between pb-3 border-b border-neutral-border/80">
                       <div className="flex items-center gap-2.5">
                         <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="text-xs font-bold uppercase tracking-wider text-neutral-secondary">
-                          Kandidat Siap Kerja Hari Ini
+                          Standar Keamanan ARTin
                         </span>
                       </div>
                       <span className="text-xs font-semibold text-primary bg-primary-light px-2.5 py-0.5 rounded-full">
-                        Kedaton & Sekitarnya
+                        Kota Bandar Lampung
                       </span>
                     </div>
 
-                    {/* Featured Mini Profile Preview */}
-                    <div className="flex items-center gap-4 bg-cream-50 p-3.5 rounded-2xl border border-accent-border/50">
-                      <div className="relative w-14 h-14 rounded-2xl overflow-hidden shrink-0 border border-primary/20">
-                        <Image
-                          src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80"
-                          alt="Siti Rahayu"
-                          fill
-                          className="object-cover"
-                        />
+                    <div className="bg-cream-50 p-4 rounded-2xl border border-accent-border/50 space-y-2">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                        <ShieldCheck className="w-5 h-5 text-primary shrink-0" />
+                        <span>Perekrutan Langsung & Tepercaya</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <h4 className="text-sm font-bold text-neutral-dark truncate">Siti Rahayu</h4>
-                          <span className="text-[10px] font-semibold bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded-full">
-                            Terverifikasi
-                          </span>
-                        </div>
-                        <p className="text-xs text-neutral-secondary mt-0.5">Kec. Kedaton • 6 Th Pengalaman</p>
-                        <p className="text-xs font-bold text-primary mt-1">Rp 2,0 jt - 2,6 jt /bln</p>
-                      </div>
+                      <p className="text-xs text-neutral-secondary leading-relaxed">
+                        Menghubungkan keluarga dengan asisten rumah tangga terverifikasi di 20 kecamatan Bandar Lampung dengan estimasi jarak radius akurat.
+                      </p>
                     </div>
 
-                    <div className="space-y-2 text-xs text-neutral-secondary">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-2.5 text-xs text-neutral-secondary">
+                      <div className="flex items-center gap-2.5">
                         <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Estimasi jarak 2.4 km dari lokasi pekerjaan Anda</span>
+                        <span>Verifikasi identitas resmi (KTP & dokumen riwayat)</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Keahlian: Pembersihan Menyeluruh & Masak Nusantara</span>
+                        <span>Pencarian berbasis jarak radius PostGIS (1, 3, 5, 10, 20 km)</span>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>Privasi aman: Alamat rumah presisi tidak dipublikasikan</span>
+                        <span>Privasi terlindungi: Alamat rumah presisi tidak dipublikasikan</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Tanpa potongan komisi gaji ART dari platform</span>
                       </div>
                     </div>
 
                     <Link href="/cari-art" className="block pt-2">
                       <Button variant="outline" size="sm" className="w-full text-xs border-primary/40 text-primary hover:bg-primary-light">
-                        Lihat Semua Kandidat di Bandar Lampung &rarr;
+                        Mulai Cari ART Terdekat &rarr;
                       </Button>
                     </Link>
                   </div>
@@ -522,11 +514,28 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {featuredArts.map((art) => (
-                <ArtCard key={art.id} art={art} showDistance={false} />
-              ))}
-            </div>
+            {featuredArts.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {featuredArts.map((art) => (
+                  <ArtCard key={art.id} art={art} showDistance={false} />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-3xl p-8 border border-neutral-border text-center space-y-3 max-w-lg mx-auto shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-primary-light text-primary flex items-center justify-center mx-auto">
+                  <Users className="w-6 h-6" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-dark">Belum Ada Kandidat Terdaftar</h3>
+                <p className="text-xs text-neutral-secondary leading-relaxed">
+                  Belum ada kandidat ART yang terverifikasi untuk ditampilkan saat ini. Jadilah yang pertama bergabung dan mulai menerima tawaran kerja dari keluarga di Bandar Lampung.
+                </p>
+                <Link href="/register" className="inline-block pt-1">
+                  <Button variant="primary" size="sm">
+                    Daftar Sebagai Calon ART
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </section>
 
@@ -558,11 +567,28 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {latestJobs.map((job) => (
-                <JobCard key={job.id} job={job} showDistance={false} />
-              ))}
-            </div>
+            {latestJobs.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {latestJobs.map((job) => (
+                  <JobCard key={job.id} job={job} showDistance={false} />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-[#FAFCFA] rounded-3xl p-8 border border-neutral-border text-center space-y-3 max-w-lg mx-auto shadow-xs">
+                <div className="w-12 h-12 rounded-2xl bg-accent-light text-accent flex items-center justify-center mx-auto">
+                  <Briefcase className="w-6 h-6 text-amber-900" />
+                </div>
+                <h3 className="text-base font-bold text-neutral-dark">Belum Ada Lowongan Aktif</h3>
+                <p className="text-xs text-neutral-secondary leading-relaxed">
+                  Belum ada lowongan pekerjaan aktif yang dipublikasikan saat ini. Pasang lowongan keluarga Anda untuk menemukan asisten rumah tangga yang sesuai.
+                </p>
+                <Link href="/keluarga" className="inline-block pt-1">
+                  <Button variant="accent" size="sm" className="font-bold text-neutral-dark">
+                    Pasang Lowongan Keluarga
+                  </Button>
+                </Link>
+              </div>
+            )}
           </div>
         </section>
 

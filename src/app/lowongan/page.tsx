@@ -1,33 +1,116 @@
 'use client';
 
-import React, { useState, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/ui/Navbar';
 import { Footer } from '@/components/ui/Footer';
 import { JobCard } from '@/components/ui/JobCard';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { searchJobVacancies } from '@/lib/data-repository';
 import { BANDAR_LAMPUNG_DISTRICTS } from '@/lib/constants';
-import { JobType } from '@/types';
+import { JobType, JobVacancy } from '@/types';
+import { createClient } from '@/lib/supabase/client';
 import { Search, MapPin, Briefcase, Filter, X, RotateCcw } from 'lucide-react';
 
 function LowonganContent() {
   const searchParams = useSearchParams();
+  const supabase = createClient();
 
   const [keyword, setKeyword] = useState('');
   const [district, setDistrict] = useState('');
   const [jobType, setJobType] = useState<JobType | ''>('');
   const [maxSalary, setMaxSalary] = useState(0);
+  const [jobs, setJobs] = useState<JobVacancy[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const jobs = useMemo(() => {
-    return searchJobVacancies({
-      keyword: keyword.trim() ? keyword : undefined,
-      district: district || undefined,
-      jobType: jobType ? jobType : undefined,
-      maxSalary: maxSalary > 0 ? maxSalary : undefined,
-      status: 'active',
-    });
+  // Synchronize with Supabase job_vacancies table
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    async function fetchJobs() {
+      try {
+        let query = supabase
+          .from('job_vacancies')
+          .select('*, employer:employer_profiles(*, profile:profiles(*))')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false });
+
+        if (district) query = query.ilike('district', `%${district}%`);
+        if (jobType) query = query.eq('job_type', jobType);
+        if (maxSalary > 0) query = query.lte('salary_min', maxSalary);
+
+        const { data, error } = await query;
+
+        if (!error && Array.isArray(data) && data.length > 0 && isMounted) {
+          let list: JobVacancy[] = data.map((j: any) => ({
+            id: j.id,
+            employerId: j.employer_id,
+            employerName: j.employer?.profile?.full_name || 'Keluarga di ' + j.district,
+            employerVerificationStatus: 'verified',
+            city: 'Bandar Lampung',
+            requiredCount: 1,
+            paymentSchedule: 'Bulanan',
+            title: j.title,
+            description: j.description,
+            district: j.district,
+            jobType: j.job_type as JobType,
+            salaryMin: Number(j.salary_min),
+            salaryMax: Number(j.salary_max),
+            workingHours: j.working_hours,
+            workingDays: j.working_days,
+            facilities: Array.isArray(j.facilities) ? j.facilities : [],
+            requirements: Array.isArray(j.requirements) ? j.requirements : [],
+            status: j.status,
+            createdAt: j.created_at || new Date().toISOString(),
+            updatedAt: j.updated_at || j.created_at || new Date().toISOString(),
+          }));
+
+          if (keyword.trim()) {
+            const q = keyword.toLowerCase().trim();
+            list = list.filter(
+              (item) =>
+                item.title.toLowerCase().includes(q) ||
+                item.description.toLowerCase().includes(q) ||
+                item.district.toLowerCase().includes(q)
+            );
+          }
+
+          setJobs(list);
+        } else if (isMounted) {
+          // Fallback to local memory repository if database is empty or unpopulated
+          setJobs(
+            searchJobVacancies({
+              keyword: keyword.trim() ? keyword : undefined,
+              district: district || undefined,
+              jobType: jobType ? jobType : undefined,
+              maxSalary: maxSalary > 0 ? maxSalary : undefined,
+              status: 'active',
+            })
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setJobs(
+            searchJobVacancies({
+              keyword: keyword.trim() ? keyword : undefined,
+              district: district || undefined,
+              jobType: jobType ? jobType : undefined,
+              maxSalary: maxSalary > 0 ? maxSalary : undefined,
+              status: 'active',
+            })
+          );
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    fetchJobs();
+
+    return () => {
+      isMounted = false;
+    };
   }, [keyword, district, jobType, maxSalary]);
 
   const handleReset = () => {
@@ -78,12 +161,12 @@ function LowonganContent() {
                 <select
                   value={district}
                   onChange={(e) => setDistrict(e.target.value)}
-                  className="w-full py-2.5 px-3 text-xs bg-neutral-light rounded-xl border border-neutral-border text-neutral-dark focus:border-primary focus:outline-none"
+                  className="w-full px-3 py-2.5 text-xs bg-neutral-light rounded-xl border border-neutral-border focus:border-primary focus:bg-white focus:outline-none"
                 >
-                  <option value="">Semua Kecamatan</option>
+                  <option value="">Semua Kecamatan di Bandar Lampung</option>
                   {BANDAR_LAMPUNG_DISTRICTS.map((d) => (
                     <option key={d.name} value={d.name}>
-                      Kecamatan {d.name}
+                      Kec. {d.name}
                     </option>
                   ))}
                 </select>
@@ -93,24 +176,24 @@ function LowonganContent() {
               <div className="sm:col-span-3">
                 <select
                   value={jobType}
-                  onChange={(e: any) => setJobType(e.target.value)}
-                  className="w-full py-2.5 px-3 text-xs bg-neutral-light rounded-xl border border-neutral-border text-neutral-dark focus:border-primary focus:outline-none"
+                  onChange={(e) => setJobType(e.target.value as any)}
+                  className="w-full px-3 py-2.5 text-xs bg-neutral-light rounded-xl border border-neutral-border focus:border-primary focus:bg-white focus:outline-none"
                 >
-                  <option value="">Semua Tipe Kerja</option>
+                  <option value="">Semua Tipe Pekerjaan</option>
+                  <option value="full_time">Menginap (Full-time)</option>
                   <option value="live_out">Pulang Pergi</option>
-                  <option value="live_in">Menginap</option>
-                  <option value="full_time">Penuh Waktu</option>
                   <option value="part_time">Paruh Waktu</option>
                 </select>
               </div>
             </div>
 
-            {(keyword || district || jobType) && (
+            {/* Active Filters count / reset button */}
+            {(keyword || district || jobType || maxSalary > 0) && (
               <div className="flex items-center justify-between pt-2 border-t border-neutral-border/60 text-xs text-neutral-secondary">
-                <span>Ditemukan <strong>{jobs.length}</strong> lowongan kerja aktif</span>
+                <span>Filter aktif diterapkan</span>
                 <button
                   onClick={handleReset}
-                  className="text-primary hover:underline font-bold flex items-center gap-1"
+                  className="text-rose-600 hover:underline flex items-center gap-1 font-semibold"
                 >
                   <RotateCcw className="w-3 h-3" />
                   Reset Filter
@@ -120,9 +203,9 @@ function LowonganContent() {
           </div>
         </div>
 
-        {/* Jobs Grid */}
+        {/* Jobs Listing Grid */}
         {jobs.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {jobs.map((job) => (
               <JobCard key={job.id} job={job} showDistance={false} />
             ))}

@@ -40,6 +40,7 @@ export default function RegisterPage() {
     try {
       await register({
         email,
+        password,
         fullName,
         role,
         phone,
@@ -124,7 +125,7 @@ export default function RegisterPage() {
               <Input
                 label="Nama Lengkap"
                 required
-                placeholder={role === 'family' ? 'Contoh: Ibu Maya Lestari' : 'Contoh: Siti Rahayu'}
+                placeholder={role === 'family' ? 'Contoh: Maya Anggraini' : 'Contoh: Siti Rahmawati'}
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 leftIcon={<User className="w-4 h-4" />}
