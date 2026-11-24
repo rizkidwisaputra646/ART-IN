@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #087C59;
+  --primary-hover: #066347;
+  --primary-light: #E7F4EF;
+  --primary-surface: #F2F9F6;
+  --accent: #FFA51F;
+  --accent-hover: #E68F13;
+  --accent-light: #FFF4E3;
+  --cream: #FFF9F0;
+  --neutral-dark: #34433D;
+  --neutral-secondary: #64736B;
+  --neutral-muted: #9AA5A0;
+  --neutral-border: #E2E8E5;
+  --neutral-light: #F7FAF8;
+}
+
+body {
+  color: var(--neutral-dark);
+  background-color: #FAFCFA;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F4F2;
+}
+::-webkit-scrollbar-thumb {
+  background: #C4D0CA;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9AA5A0;
+}
+
+/* Smooth badge pulse for verification */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.03); }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2.5s infinite ease-in-out;
+}
