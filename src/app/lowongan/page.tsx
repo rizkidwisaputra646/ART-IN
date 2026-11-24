@@ -47,7 +47,7 @@ function LowonganContent() {
             id: j.id,
             employerId: j.employer_id,
             employerName: j.employer?.profile?.full_name || 'Keluarga di ' + j.district,
-            employerVerificationStatus: 'verified',
+            employerVerificationStatus: j.employer?.verification_status || 'unverified',
             city: 'Bandar Lampung',
             requiredCount: 1,
             paymentSchedule: 'Bulanan',

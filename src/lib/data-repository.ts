@@ -357,7 +357,7 @@ export function createJobVacancy(
     id: `job-${Date.now()}`,
     employerId,
     employerName,
-    employerVerificationStatus: 'verified',
+    employerVerificationStatus: 'unverified',
     title: data.title || 'Lowongan ART Baru',
     description: data.description || '',
     jobType: data.jobType || 'full_time',

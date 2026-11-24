@@ -202,7 +202,7 @@ export default function FamilyDashboardPage() {
             id: j.id,
             employerId: j.employer_id,
             employerName: profile?.full_name || 'Keluarga',
-            employerVerificationStatus: 'verified',
+            employerVerificationStatus: verificationStatus || 'unverified',
             city: 'Bandar Lampung',
             requiredCount: 1,
             paymentSchedule: 'Bulanan',

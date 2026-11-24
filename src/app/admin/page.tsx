@@ -70,11 +70,21 @@ export default function AdminDashboardPage() {
       try {
         const supabase = createClient();
 
-        // 1. Load Verifications
-        const { data: verifData } = await supabase
+        // 1. Load Verifications & District Mapping
+        const { data: artsDistrict } = await supabase.from('art_profiles').select('id, district');
+        const { data: empsDistrict } = await supabase.from('employer_profiles').select('id, district');
+        const districtMap = new Map<string, string>();
+        (artsDistrict || []).forEach((a: any) => { if (a?.id && a?.district) districtMap.set(a.id, a.district); });
+        (empsDistrict || []).forEach((e: any) => { if (e?.id && e?.district) districtMap.set(e.id, e.district); });
+
+        const { data: verifData, error: verifError } = await supabase
           .from('verification_requests')
-          .select('*, profiles:user_id(full_name, district, phone)')
+          .select('*, profiles:user_id(full_name, phone, email, avatar_url)')
           .order('created_at', { ascending: false });
+
+        if (verifError) {
+          console.error('Error fetching verification_requests from Supabase:', verifError);
+        }
 
         if (verifData && verifData.length > 0) {
           const mapped: VerificationRequest[] = verifData.map((d: any) => ({
@@ -82,7 +92,7 @@ export default function AdminDashboardPage() {
             userId: d.user_id,
             userName: d.profiles?.full_name || 'Pengguna ARTin',
             userRole: d.role,
-            userDistrict: d.profiles?.district || 'Bandar Lampung',
+            userDistrict: districtMap.get(d.user_id) || 'Bandar Lampung',
             idCardUrl: d.id_card_url,
             selfieUrl: d.selfie_url,
             notes: d.notes,
@@ -98,7 +108,7 @@ export default function AdminDashboardPage() {
         // 2. Load Jobs
         const { data: jobData } = await supabase
           .from('job_vacancies')
-          .select('*, employer_profiles:employer_id(contact_person)')
+          .select('*, employer_profiles:employer_id(contact_person, verification_status)')
           .order('created_at', { ascending: false });
 
         if (jobData && jobData.length > 0) {
@@ -106,7 +116,7 @@ export default function AdminDashboardPage() {
             id: j.id,
             employerId: j.employer_id,
             employerName: j.employer_profiles?.contact_person || 'Keluarga',
-            employerVerificationStatus: 'verified',
+            employerVerificationStatus: j.employer_profiles?.verification_status || 'unverified',
             city: 'Bandar Lampung',
             requiredCount: 1,
             paymentSchedule: 'Bulanan',
@@ -268,15 +278,16 @@ export default function AdminDashboardPage() {
 
       // Update target profile verification_status directly
       if (targetVerif.userId) {
+        const profileStatus = status === 'verified' ? 'verified' : 'unverified';
         if (targetVerif.userRole === 'art') {
           await supabase
             .from('art_profiles')
-            .update({ verification_status: status })
+            .update({ verification_status: profileStatus })
             .eq('id', targetVerif.userId);
         } else {
           await supabase
             .from('employer_profiles')
-            .update({ verification_status: status })
+            .update({ verification_status: profileStatus })
             .eq('id', targetVerif.userId);
         }
       }
