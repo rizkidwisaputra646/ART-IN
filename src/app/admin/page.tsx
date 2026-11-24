@@ -19,6 +19,7 @@ import {
   searchArtProfiles,
 } from '@/lib/data-repository';
 import { formatCompactRupiah, formatDateIndo } from '@/lib/utils';
+import { useAuth } from '@/lib/auth-context';
 import { VerificationRequest, ReportItem, JobVacancy, ArtProfile, VerificationStatus, ReportStatus } from '@/types';
 import {
   ShieldAlert,
@@ -35,9 +36,11 @@ import {
   Lock,
   Activity,
   UserCheck,
+  Loader2,
 } from 'lucide-react';
 
 export default function AdminDashboardPage() {
+  const { profile, isLoading: isAuthLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<'overview' | 'verifications' | 'jobs' | 'reports' | 'users'>('overview');
 
   // Admin Data States
@@ -49,11 +52,34 @@ export default function AdminDashboardPage() {
 
   // Selected verification document for modal inspection
   const [selectedVerif, setSelectedVerif] = useState<VerificationRequest | null>(null);
+  const [signedDocUrl, setSignedDocUrl] = useState<string | null>(null);
+  const [signedDocLoading, setSignedDocLoading] = useState(false);
   const [reviewNote, setReviewNote] = useState('');
 
   // Selected report for modal inspection
   const [selectedReport, setSelectedReport] = useState<ReportItem | null>(null);
   const [adminReportNote, setAdminReportNote] = useState('');
+
+  // Securely request a time-limited signed URL for private verification documents
+  const handleInspectVerificationDoc = async (v: VerificationRequest) => {
+    setSelectedVerif(v);
+    setSignedDocLoading(true);
+    setSignedDocUrl(null);
+
+    try {
+      const res = await fetch(`/api/admin/verification-doc?id=${v.id}`);
+      const json = await res.json();
+      if (json.success && json.signedUrl) {
+        setSignedDocUrl(json.signedUrl);
+      } else {
+        setSignedDocUrl(v.idCardUrl);
+      }
+    } catch {
+      setSignedDocUrl(v.idCardUrl);
+    } finally {
+      setSignedDocLoading(false);
+    }
+  };
 
   // Action handlers
   const handleReviewVerification = (status: VerificationStatus) => {
@@ -62,6 +88,7 @@ export default function AdminDashboardPage() {
     setVerifications(getVerificationRequests());
     setStats(getAdminStats());
     setSelectedVerif(null);
+    setSignedDocUrl(null);
     setReviewNote('');
   };
 
@@ -80,6 +107,45 @@ export default function AdminDashboardPage() {
     setJobs(searchJobVacancies({}));
     setStats(getAdminStats());
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFCFA]">
+        <div className="flex items-center gap-2 text-sm text-neutral-secondary font-medium">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <span>Memeriksa hak akses administrator...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Strict Role Guard: Only Admins can access Admin Dashboard
+  if (!profile || profile.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAFCFA]">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-md bg-white p-8 rounded-3xl border border-neutral-border shadow-card">
+            <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-neutral-dark">Akses Ditolak: Khusus Administrator</h2>
+            <p className="text-xs text-neutral-secondary leading-relaxed">
+              Anda tidak memiliki izin untuk mengakses halaman operasional ini. Sesuai PRD ARTin, akses admin hanya diberikan kepada staf pengelola platform yang berwenang.
+            </p>
+            <div className="pt-2">
+              <Link href="/login">
+                <Button variant="primary" size="sm">
+                  Masuk dengan Akun Admin
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFCFA]">
@@ -253,7 +319,7 @@ export default function AdminDashboardPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setSelectedVerif(v)}
+                          onClick={() => handleInspectVerificationDoc(v)}
                           className="text-xs"
                         >
                           Periksa
@@ -338,7 +404,7 @@ export default function AdminDashboardPage() {
                     variant="primary"
                     size="sm"
                     leftIcon={<Eye className="w-4 h-4" />}
-                    onClick={() => setSelectedVerif(v)}
+                    onClick={() => handleInspectVerificationDoc(v)}
                     className="text-xs shrink-0"
                   >
                     Buka Dokumen KTP Secara Aman
@@ -493,16 +559,30 @@ export default function AdminDashboardPage() {
                 <p>Domisili: Kecamatan {selectedVerif.userDistrict}, Bandar Lampung</p>
               </div>
 
-              {/* Secure Document Preview */}
+              {/* Secure Document Preview with Signed URL */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-neutral-dark block">Foto KTP Pemohon (Private)</span>
-                <div className="relative w-full h-56 rounded-2xl overflow-hidden border border-neutral-border bg-neutral-light">
-                  <Image
-                    src={selectedVerif.idCardUrl}
-                    alt="Foto KTP"
-                    fill
-                    className="object-contain p-2"
-                  />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-neutral-dark">
+                    Foto KTP Pemohon (Private Storage)
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                    Signed URL Aktif (Masa Berlaku 15 Menit)
+                  </span>
+                </div>
+                <div className="relative w-full h-56 rounded-2xl overflow-hidden border border-neutral-border bg-neutral-light flex items-center justify-center">
+                  {signedDocLoading ? (
+                    <div className="flex items-center gap-2 text-xs text-neutral-secondary">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <span>Membuat signed token akses dokumen...</span>
+                    </div>
+                  ) : (
+                    <Image
+                      src={signedDocUrl || selectedVerif.idCardUrl}
+                      alt="Foto KTP"
+                      fill
+                      className="object-contain p-2"
+                    />
+                  )}
                 </div>
               </div>
 

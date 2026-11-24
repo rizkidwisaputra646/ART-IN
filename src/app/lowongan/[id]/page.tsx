@@ -65,35 +65,76 @@ export default function DetailLowonganPage() {
     );
   }
 
-  const handleApply = (e: React.FormEvent) => {
+  const handleApply = async (e: React.FormEvent) => {
     e.preventDefault();
     setApplyLoading(true);
 
-    const artId = profile?.role === 'art' ? profile.id : 'art-1'; // fallback to mock art-1 if testing
-    const res = applyForJob(artId, job.id, coverLetter);
+    const artId = profile?.role === 'art' ? profile.id : 'art-1';
 
-    setApplyLoading(false);
-    setApplyResult(res);
+    try {
+      const res = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          artId,
+          jobId: job.id,
+          coverLetter,
+        }),
+      });
+      const json = await res.json();
 
-    if (res.success) {
-      setTimeout(() => {
-        setApplyModalOpen(false);
-        setApplyResult(null);
-        setCoverLetter('');
-      }, 2500);
+      setApplyLoading(false);
+      if (json.success) {
+        setApplyResult({ success: true, message: json.message });
+        setTimeout(() => {
+          setApplyModalOpen(false);
+          setApplyResult(null);
+          setCoverLetter('');
+        }, 2500);
+      } else {
+        setApplyResult({ success: false, message: json.error || 'Gagal mengajukan lamaran.' });
+      }
+    } catch {
+      // Fallback
+      const res = applyForJob(artId, job.id, coverLetter);
+      setApplyLoading(false);
+      setApplyResult(res);
+      if (res.success) {
+        setTimeout(() => {
+          setApplyModalOpen(false);
+          setApplyResult(null);
+          setCoverLetter('');
+        }, 2500);
+      }
     }
   };
 
-  const handleReport = (e: React.FormEvent) => {
+  const handleReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    submitReport({
-      reporterId: profile?.id || 'guest',
-      reporterName: profile?.full_name || 'Tamu Pengguna',
-      reportedJobId: job.id,
-      reportedJobTitle: job.title,
-      category: 'lowongan_palsu',
-      reason: reportReason,
-    });
+    try {
+      await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reporterId: profile?.id || 'guest',
+          reporterName: profile?.full_name || 'Tamu Pengguna',
+          reportedJobId: job.id,
+          reportedJobTitle: job.title,
+          category: 'lowongan_palsu',
+          reason: reportReason,
+        }),
+      });
+    } catch {
+      submitReport({
+        reporterId: profile?.id || 'guest',
+        reporterName: profile?.full_name || 'Tamu Pengguna',
+        reportedJobId: job.id,
+        reportedJobTitle: job.title,
+        category: 'lowongan_palsu',
+        reason: reportReason,
+      });
+    }
+
     setReportSuccess(true);
     setTimeout(() => {
       setReportModalOpen(false);

@@ -38,10 +38,12 @@ import {
   Settings,
   Sparkles,
   Search,
+  Lock,
+  Loader2,
 } from 'lucide-react';
 
 export default function FamilyDashboardPage() {
-  const { profile } = useAuth();
+  const { profile, isLoading: isAuthLoading } = useAuth();
   const employerId = profile?.role === 'family' ? profile.id : 'emp-1';
 
   // Tabs: overview | vacancies | applicants | create | settings
@@ -136,6 +138,45 @@ export default function FamilyDashboardPage() {
 
   const activeVacanciesCount = vacancies.filter((v) => v.status === 'active').length;
   const pendingAppsCount = applications.filter((a) => a.status === 'pending').length;
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFCFA]">
+        <div className="flex items-center gap-2 text-sm text-neutral-secondary font-medium">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <span>Memeriksa hak akses keluarga...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Strict Role Guard: Only Families can access Family Dashboard
+  if (!profile || profile.role !== 'family') {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAFCFA]">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-md bg-white p-8 rounded-3xl border border-neutral-border shadow-card">
+            <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-neutral-dark">Akses Dibatasi: Khusus Akun Keluarga</h2>
+            <p className="text-xs text-neutral-secondary leading-relaxed">
+              Halaman ini diperuntukkan bagi keluarga pemberi kerja yang mengelola lowongan dan pelamar. Silakan masuk dengan akun keluarga Anda.
+            </p>
+            <div className="pt-2">
+              <Link href="/login">
+                <Button variant="primary" size="sm">
+                  Masuk sebagai Keluarga
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFCFA]">

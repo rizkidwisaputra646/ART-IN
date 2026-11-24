@@ -18,7 +18,7 @@ interface AuthContextType {
   user: { id: string; email: string } | null;
   profile: UserProfile | null;
   isLoading: boolean;
-  login: (email: string, role?: UserRole) => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, roleOverride?: UserRole) => Promise<{ success: boolean; message?: string }>;
   register: (data: {
     email: string;
     fullName: string;
@@ -62,6 +62,17 @@ const DEFAULT_USERS: Record<UserRole, UserProfile> = {
   },
 };
 
+function setCookie(name: string, value: string, days = 7) {
+  if (typeof document === 'undefined') return;
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+}
+
+function deleteCookie(name: string) {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -73,13 +84,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem('artin_user_profile');
     if (saved) {
       try {
-        setProfile(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        setProfile(parsed);
+        setCookie('artin_role', parsed.role);
       } catch {
         setProfile(null);
+        deleteCookie('artin_role');
       }
     } else {
-      // Default initial guest (null) so user lands on public pages cleanly
       setProfile(null);
+      deleteCookie('artin_role');
     }
     setIsLoading(false);
   }, []);
@@ -88,18 +102,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     let chosenProfile: UserProfile;
 
+    // Prevent privilege escalation in production
+    const isDev = process.env.NODE_ENV === 'development';
+
     if (roleOverride) {
+      if (roleOverride === 'admin' && !isDev) {
+        setIsLoading(false);
+        throw new Error('Akses role admin dibatasi pada lingkungan produksi.');
+      }
       chosenProfile = DEFAULT_USERS[roleOverride];
-    } else if (email.toLowerCase().includes('admin')) {
+    } else if (email.trim().toLowerCase() === 'admin@artin.id') {
       chosenProfile = DEFAULT_USERS.admin;
-    } else if (email.toLowerCase().includes('art')) {
+    } else if (email.trim().toLowerCase() === 'art@artin.id') {
       chosenProfile = DEFAULT_USERS.art;
-    } else {
+    } else if (email.trim().toLowerCase() === 'keluarga@artin.id') {
       chosenProfile = DEFAULT_USERS.family;
+    } else {
+      // Default to family role for generic logins unless specific mock
+      chosenProfile = {
+        id: `user-${Date.now()}`,
+        email,
+        full_name: email.split('@')[0],
+        role: 'family',
+        status: 'active',
+      };
     }
 
     setProfile(chosenProfile);
     localStorage.setItem('artin_user_profile', JSON.stringify(chosenProfile));
+    setCookie('artin_role', chosenProfile.role);
     setIsLoading(false);
     return { success: true };
   };
@@ -112,6 +143,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     district: string;
   }) => {
     setIsLoading(true);
+
+    // SECURITY CHECK: Strictly block any attempt to register with admin role
+    if (data.role === 'admin' || (data.role as string) === 'administrator') {
+      setIsLoading(false);
+      throw new Error('Registrasi admin tidak diperbolehkan secara publik.');
+    }
+
+    // Role must be strictly 'family' or 'art'
+    if (data.role !== 'family' && data.role !== 'art') {
+      setIsLoading(false);
+      throw new Error('Peran akun yang dipilih tidak valid.');
+    }
+
     const newProfile: UserProfile = {
       id: `${data.role}-${Date.now()}`,
       email: data.email,
@@ -124,6 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setProfile(newProfile);
     localStorage.setItem('artin_user_profile', JSON.stringify(newProfile));
+    setCookie('artin_role', newProfile.role);
     setIsLoading(false);
     return { success: true };
   };
@@ -131,12 +176,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setProfile(null);
     localStorage.removeItem('artin_user_profile');
+    deleteCookie('artin_role');
   };
 
   const switchRole = (role: UserRole) => {
+    // Only permitted in development mode
+    if (process.env.NODE_ENV !== 'development') {
+      console.warn('Role Switcher is disabled in production.');
+      return;
+    }
     const p = DEFAULT_USERS[role];
     setProfile(p);
     localStorage.setItem('artin_user_profile', JSON.stringify(p));
+    setCookie('artin_role', p.role);
   };
 
   const user = profile ? { id: profile.id, email: profile.email } : null;

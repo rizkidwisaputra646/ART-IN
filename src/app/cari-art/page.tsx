@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Navbar } from '@/components/ui/Navbar';
 import { Footer } from '@/components/ui/Footer';
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { searchArtProfiles } from '@/lib/data-repository';
 import { BANDAR_LAMPUNG_DISTRICTS, SKILL_CATEGORIES } from '@/lib/constants';
-import { JobType } from '@/types';
+import { ArtProfile, JobType } from '@/types';
 import {
   Search,
   Filter,
@@ -21,6 +21,8 @@ import {
   X,
   UserCheck,
   ChevronDown,
+  Loader2,
+  Server,
 } from 'lucide-react';
 
 function CariArtContent() {
@@ -38,6 +40,10 @@ function CariArtContent() {
   const [gender, setGender] = useState<'female' | 'male' | ''>('');
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [sortBy, setSortBy] = useState<'nearest' | 'experience' | 'salary_asc' | 'salary_desc' | 'newest'>('nearest');
+
+  // Server Results & Loading State
+  const [searchResults, setSearchResults] = useState<ArtProfile[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Mobile Filter Drawer State
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -73,21 +79,79 @@ function CariArtContent() {
     setSortBy('nearest');
   };
 
-  // Perform search query
-  const searchResults = useMemo(() => {
-    return searchArtProfiles({
-      keyword: keyword.trim() ? keyword : (selectedSkillCategory ? selectedSkillCategory : undefined),
-      district: selectedDistrict || undefined,
-      referenceLat: gpsCoords?.lat,
-      referenceLng: gpsCoords?.lng,
-      maxDistanceKm: radiusKm > 0 ? radiusKm : undefined,
-      minExperience: minExperience > 0 ? minExperience : undefined,
-      maxSalary: maxSalary > 0 ? maxSalary : undefined,
-      jobType: selectedJobType ? selectedJobType : undefined,
-      gender: gender ? gender : undefined,
-      verifiedOnly,
-      sortBy,
-    });
+  // Perform Server-Authoritative Search Query
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+
+    const params = new URLSearchParams();
+    if (keyword.trim()) params.set('keyword', keyword.trim());
+    else if (selectedSkillCategory) params.set('keyword', selectedSkillCategory);
+
+    if (selectedDistrict) params.set('district', selectedDistrict);
+    if (gpsCoords) {
+      params.set('lat', gpsCoords.lat.toString());
+      params.set('lng', gpsCoords.lng.toString());
+    }
+    if (radiusKm > 0) params.set('radius', radiusKm.toString());
+    if (minExperience > 0) params.set('minExperience', minExperience.toString());
+    if (maxSalary > 0) params.set('maxSalary', maxSalary.toString());
+    if (selectedJobType) params.set('jobType', selectedJobType);
+    if (gender) params.set('gender', gender);
+    if (verifiedOnly) params.set('verifiedOnly', 'true');
+    params.set('sortBy', sortBy);
+
+    fetch(`/api/art/search?${params.toString()}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (isMounted) {
+          if (json.success && Array.isArray(json.data)) {
+            setSearchResults(json.data);
+          } else {
+            // Fallback to local repository if API response fails
+            setSearchResults(
+              searchArtProfiles({
+                keyword: keyword.trim() ? keyword : (selectedSkillCategory || undefined),
+                district: selectedDistrict || undefined,
+                referenceLat: gpsCoords?.lat,
+                referenceLng: gpsCoords?.lng,
+                maxDistanceKm: radiusKm > 0 ? radiusKm : undefined,
+                minExperience: minExperience > 0 ? minExperience : undefined,
+                maxSalary: maxSalary > 0 ? maxSalary : undefined,
+                jobType: selectedJobType || undefined,
+                gender: gender || undefined,
+                verifiedOnly,
+                sortBy,
+              })
+            );
+          }
+          setIsLoading(false);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setSearchResults(
+            searchArtProfiles({
+              keyword: keyword.trim() ? keyword : (selectedSkillCategory || undefined),
+              district: selectedDistrict || undefined,
+              referenceLat: gpsCoords?.lat,
+              referenceLng: gpsCoords?.lng,
+              maxDistanceKm: radiusKm > 0 ? radiusKm : undefined,
+              minExperience: minExperience > 0 ? minExperience : undefined,
+              maxSalary: maxSalary > 0 ? maxSalary : undefined,
+              jobType: selectedJobType || undefined,
+              gender: gender || undefined,
+              verifiedOnly,
+              sortBy,
+            })
+          );
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
   }, [
     keyword,
     selectedDistrict,
@@ -377,17 +441,29 @@ function CariArtContent() {
           {/* MAIN RESULTS COLUMN */}
           <div className="lg:col-span-8 space-y-6">
             <div className="flex items-center justify-between pb-2 border-b border-neutral-border/60">
-              <span className="text-xs sm:text-sm font-bold text-neutral-dark">
-                Menampilkan <span className="text-primary">{searchResults.length}</span> kandidat ART
+              <span className="text-xs sm:text-sm font-bold text-neutral-dark flex items-center gap-2">
+                Menampilkan <span className="text-primary font-black">{searchResults.length}</span> kandidat ART
                 {selectedDistrict && ` di Kec. ${selectedDistrict}`}
+                {isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
               </span>
-              <span className="text-xs text-neutral-secondary">
-                Estimasi jarak garis lurus terhitung
+              <span className="text-[11px] font-semibold text-neutral-secondary bg-neutral-light px-2.5 py-1 rounded-full border border-neutral-border flex items-center gap-1.5">
+                <Server className="w-3 h-3 text-primary" />
+                <span>Jarak Terhitung Server (PostGIS)</span>
               </span>
             </div>
 
             {/* Candidate Cards Grid */}
-            {searchResults.length > 0 ? (
+            {isLoading ? (
+              <div className="p-16 text-center bg-white rounded-3xl border border-neutral-border shadow-xs space-y-3">
+                <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+                <p className="text-xs font-semibold text-neutral-dark">
+                  Memproses pencarian dan menghitung jarak terdekat di server...
+                </p>
+                <p className="text-[11px] text-neutral-secondary">
+                  Menjaga kerahasiaan alamat rumah dan koordinat presisi kandidat.
+                </p>
+              </div>
+            ) : searchResults.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {searchResults.map((art) => (
                   <ArtCard key={art.id} art={art} showDistance={true} />

@@ -38,10 +38,12 @@ import {
   Calendar,
   AlertCircle,
   Search,
+  Lock,
+  Loader2,
 } from 'lucide-react';
 
 export default function ArtDashboardPage() {
-  const { profile } = useAuth();
+  const { profile, isLoading: isAuthLoading } = useAuth();
   const artId = profile?.role === 'art' ? profile.id : 'art-1';
   const initialArt = getArtById(artId) || getArtById('art-1')!;
 
@@ -101,8 +103,12 @@ export default function ArtDashboardPage() {
 
   const handleWithdrawApplication = (appId: string) => {
     if (confirm('Apakah Anda yakin ingin membatalkan lamaran pekerjaan ini?')) {
-      updateApplicationStatus(appId, 'withdrawn');
-      setApplications([...getApplicationsForArt(artId)]);
+      const res = updateApplicationStatus(appId, 'withdrawn');
+      if (res.success) {
+        setApplications([...getApplicationsForArt(artId)]);
+      } else {
+        alert(res.message);
+      }
     }
   };
 
@@ -122,6 +128,45 @@ export default function ArtDashboardPage() {
 
   // Recent jobs for quick apply
   const recentJobs = searchJobVacancies({ status: 'active' }).slice(0, 3);
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFCFA]">
+        <div className="flex items-center gap-2 text-sm text-neutral-secondary font-medium">
+          <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          <span>Memeriksa hak akses calon ART...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Strict Role Guard: Only ART can access ART Dashboard
+  if (!profile || profile.role !== 'art') {
+    return (
+      <div className="min-h-screen flex flex-col bg-[#FAFCFA]">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center space-y-4 max-w-md bg-white p-8 rounded-3xl border border-neutral-border shadow-card">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-neutral-dark">Akses Dibatasi: Khusus Akun ART</h2>
+            <p className="text-xs text-neutral-secondary leading-relaxed">
+              Halaman ini diperuntukkan bagi calon Asisten Rumah Tangga untuk memantau lamaran dan mengelola profil kerja. Silakan masuk dengan akun ART Anda.
+            </p>
+            <div className="pt-2">
+              <Link href="/login">
+                <Button variant="primary" size="sm">
+                  Masuk sebagai Calon ART
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAFCFA]">

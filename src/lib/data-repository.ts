@@ -325,16 +325,26 @@ export function updateApplicationStatus(
   status: ApplicationStatus,
   notes?: string,
   interviewScheduledAt?: string
-): boolean {
+): { success: boolean; message: string } {
   const app = applications.find((a) => a.id === appId);
-  if (!app) return false;
+  if (!app) return { success: false, message: 'Lamaran tidak ditemukan.' };
+
+  // PRD Business Rule: ART can only withdraw when status is pending or reviewing
+  if (status === 'withdrawn') {
+    if (!['pending', 'reviewing'].includes(app.status)) {
+      return {
+        success: false,
+        message: 'Lamaran tidak dapat dibatalkan karena sudah masuk tahap wawancara atau telah disetujui/ditolak.',
+      };
+    }
+  }
 
   app.status = status;
   app.updatedAt = new Date().toISOString();
   if (notes !== undefined) app.notesFromEmployer = notes;
   if (interviewScheduledAt) app.interviewScheduledAt = interviewScheduledAt;
 
-  return true;
+  return { success: true, message: `Status lamaran berhasil diperbarui menjadi ${status}.` };
 }
 
 // Vacancies management for Employer
